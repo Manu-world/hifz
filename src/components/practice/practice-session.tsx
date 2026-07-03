@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,12 +27,15 @@ export function PracticeSession({
   categoryId,
   categoryName,
   initialMode,
+  initialRevise,
 }: {
   categoryId: string;
   categoryName: string;
   initialMode: Mode | null;
+  initialRevise: boolean;
 }) {
   const [mode, setMode] = useState<Mode | null>(initialMode);
+  const [revise, setRevise] = useState(initialRevise);
   const [phase, setPhase] = useState<Phase>(initialMode ? "loading" : "choose-mode");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [queue, setQueue] = useState<PracticeWord[]>([]);
@@ -40,8 +43,13 @@ export function PracticeSession({
   const [inputValue, setInputValue] = useState("");
   const [result, setResult] = useState<Result>(null);
   const [tally, setTally] = useState({ wordsShown: 0, correctCount: 0 });
+  const tallyRef = useRef(tally);
 
   const currentWord = queue[0] ?? null;
+
+  useEffect(() => {
+    tallyRef.current = tally;
+  }, [tally]);
 
   useEffect(() => {
     if (!mode) return;
@@ -49,7 +57,9 @@ export function PracticeSession({
 
     async function start() {
       setPhase("loading");
-      const wordsRes = await fetch(`/api/words/due?categoryId=${categoryId}`);
+      const wordsRes = await fetch(
+        `/api/words/due?categoryId=${categoryId}&revise=${revise ? "1" : "0"}`,
+      );
       const { words } = (await wordsRes.json()) as { words: PracticeWord[] };
       if (cancelled) return;
 
@@ -61,7 +71,7 @@ export function PracticeSession({
       const sessionRes = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, categoryId }),
+        body: JSON.stringify({ mode, categoryId, isRevision: revise }),
       });
       const { session } = (await sessionRes.json()) as { session: { id: string } };
       if (cancelled) return;
@@ -76,7 +86,7 @@ export function PracticeSession({
     return () => {
       cancelled = true;
     };
-  }, [mode, categoryId]);
+  }, [mode, categoryId, revise]);
 
   const side = mode === "recall" ? "english" : "arabic";
   const prompt = currentWord ? (mode === "recall" ? currentWord.arabic : currentWord.english) : "";
@@ -107,10 +117,14 @@ export function PracticeSession({
 
     const isCorrect = normalizeAndMatch(inputValue, correctAnswerRaw, side);
     setResult({ isCorrect, correctAnswer: correctAnswerRaw });
-    setTally((prev) => ({
-      wordsShown: prev.wordsShown + 1,
-      correctCount: prev.correctCount + (isCorrect ? 1 : 0),
-    }));
+    setTally((prev) => {
+      const next = {
+        wordsShown: prev.wordsShown + 1,
+        correctCount: prev.correctCount + (isCorrect ? 1 : 0),
+      };
+      tallyRef.current = next;
+      return next;
+    });
 
     await fetch("/api/progress/answer", {
       method: "POST",
@@ -125,7 +139,7 @@ export function PracticeSession({
     setInputValue("");
     setResult(null);
     if (rest.length === 0) {
-      finishSession(tally);
+      finishSession(tallyRef.current);
     }
   }
 
@@ -141,7 +155,7 @@ export function PracticeSession({
     setInputValue("");
     setResult(null);
     if (rest.length === 0) {
-      finishSession(tally);
+      finishSession(tallyRef.current);
     }
   }
 
@@ -152,11 +166,34 @@ export function PracticeSession({
           <CardTitle>{categoryName}</CardTitle>
         </CardHeader>
         <CardContent className="flex gap-2">
-          <Button className="flex-1" onClick={() => setMode("recall")}>
+          <Button
+            className="flex-1"
+            onClick={() => {
+              setMode("recall");
+              setRevise(false);
+            }}
+          >
             Recall (Arabic → English)
           </Button>
-          <Button className="flex-1" variant="outline" onClick={() => setMode("reverse")}>
+          <Button
+            className="flex-1"
+            variant="outline"
+            onClick={() => {
+              setMode("reverse");
+              setRevise(false);
+            }}
+          >
             Reverse (English → Arabic)
+          </Button>
+          <Button
+            className="flex-1"
+            variant="secondary"
+            onClick={() => {
+              setMode("recall");
+              setRevise(true);
+            }}
+          >
+            Revise All
           </Button>
         </CardContent>
       </Card>
@@ -175,7 +212,9 @@ export function PracticeSession({
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-sm">
-            Nothing due for practice right now — you&apos;re all caught up in this category.
+            {revise
+              ? "No words found in this category yet. Import words first, then revise all."
+              : "Nothing due for practice right now — you&apos;re all caught up in this category."}
           </p>
         </CardContent>
         <CardFooter>

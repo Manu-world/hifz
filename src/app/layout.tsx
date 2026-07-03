@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,6 +24,16 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "Hifz — Arabic Vocabulary Memorization",
   description: "A personal spaced-repetition drill app for Arabic vocabulary (حفظ).",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/pwa-icon.svg",
+    apple: "/pwa-icon.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Hifz",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -40,6 +51,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <RegisterServiceWorker />
         {children}
         <Toaster position="top-center" richColors />
       </body>

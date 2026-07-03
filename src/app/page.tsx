@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listCategories } from "@/lib/repositories/category.repository";
+import { deleteCategoryAction } from "@/lib/actions/category.actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,22 @@ export default async function Home() {
                 <Button asChild size="sm" variant="outline" className="flex-1">
                   <Link href={`/practice/${category.id}?mode=reverse`}>Reverse</Link>
                 </Button>
+                <Button asChild size="sm" variant="secondary" className="flex-1">
+                  <Link href={`/practice/${category.id}?mode=recall&revise=1`}>Revise all</Link>
+                </Button>
+              </CardContent>
+              <CardContent className="pt-0">
+                <form action={deleteCategoryAction}>
+                  <input type="hidden" name="categoryId" value={category.id} />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    Delete category
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           ))}

@@ -15,15 +15,19 @@ function parseMode(value: string | string[] | undefined): PracticeMode | null {
   return null;
 }
 
+function parseRevise(value: string | string[] | undefined): boolean {
+  return value === "1" || value === "true";
+}
+
 export default async function PracticePage({
   params,
   searchParams,
 }: {
   params: Promise<{ categoryId: string }>;
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; revise?: string }>;
 }) {
   const { categoryId } = await params;
-  const { mode: rawMode } = await searchParams;
+  const { mode: rawMode, revise: rawRevise } = await searchParams;
   const category = await getCategoryById(categoryId);
 
   if (!category) {
@@ -31,10 +35,16 @@ export default async function PracticePage({
   }
 
   const mode = parseMode(rawMode);
+  const revise = parseRevise(rawRevise);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-10 sm:px-6">
-      <PracticeSession categoryId={category.id} categoryName={category.name} initialMode={mode} />
+      <PracticeSession
+        categoryId={category.id}
+        categoryName={category.name}
+        initialMode={mode}
+        initialRevise={revise}
+      />
     </div>
   );
 }
