@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Datasource url is provided by prisma.config.ts (CLI) and by lib/db/client.ts
+// (runtime). Local dev uses a plain sqlite file; production (Vercel) uses
+// Turso/libSQL — same schema, different connection string. See README.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  words       VocabWord[]
+  sessionLogs SessionLog[]
+}
+
+model VocabWord {
+  id             String   @id @default(cuid())
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // "/" separated synonyms are allowed, e.g. "يجيء / ياتي" or "To stand / rise"
+  arabic         String
+  english        String
+  exampleArabic  String?
+  exampleEnglish String?
+  createdAt      DateTime @default(now())
+
+  progress WordProgress?
+
+  @@index([categoryId])
+  @@index([categoryId, arabic])
+}
+
+// 1:1 with VocabWord. Drives the Leitner-box spaced-repetition scheduler.
+model WordProgress {
+  id     String    @id @default(cuid())
+  wordId String    @unique
+  word   VocabWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  box          Int       @default(0)
+  dueAt        DateTime  @default(now())
+  correctCount Int       @default(0)
+  wrongCount   Int       @default(0)
+  // Manual "I know this" flag. Excluded from normal rotation until "Revise All".
+  isDone       Boolean   @default(false)
+  // Assumption (not in original spec): timestamp of when isDone was last set to
+  // true, so the dashboard can chart "words mastered over time".
+  doneAt       DateTime?
+  lastSeenAt   DateTime?
+
+  @@index([dueAt])
+  @@index([isDone])
+}
+
+enum PracticeMode {
+  recall
+  reverse
+  gamified
+}
+
+// For the dashboard: accuracy trend, session history.
+model SessionLog {
+  id         String       @id @default(cuid())
+  mode       PracticeMode
+  categoryId String?
+  category   Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // Assumption: "Revise All" reuses the recall/reverse mode value and is
+  // distinguished by this flag, rather than adding a 4th enum value.
+  isRevision Boolean      @default(false)
+
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  wordsShown   Int       @default(0)
+  correctCount Int       @default(0)
+  xpEarned     Int       @default(0)
+
+  @@index([startedAt])
+  @@index([categoryId])
+}
+
+// Single-user app: exactly one row, fixed id.
+model GamificationProfile {
+  id                String    @id @default("singleton")
+  xp                Int       @default(0)
+  level             Int       @default(1)
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  lastPracticedDate DateTime?
+  // JSON array of unlocked achievement ids, e.g. ["streak_7", "mastered_50"]
+  achievements      Json      @default("[]")
+}
+
