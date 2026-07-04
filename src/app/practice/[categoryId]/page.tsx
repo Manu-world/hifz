@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCategoryById } from "@/lib/repositories/category.repository";
 import { PracticeSession } from "@/components/practice/practice-session";
+import { GamifiedSession } from "@/components/practice/gamified-session";
 
 // This page only validates the category server-side; the actual due-word
 // queue and all mutations happen via the REST routes under /api (fetched
@@ -8,10 +9,10 @@ import { PracticeSession } from "@/components/practice/practice-session";
 // service worker for offline support (Phase 6).
 export const dynamic = "force-dynamic";
 
-type PracticeMode = "recall" | "reverse";
+type PracticeMode = "recall" | "reverse" | "gamified";
 
 function parseMode(value: string | string[] | undefined): PracticeMode | null {
-  if (value === "recall" || value === "reverse") return value;
+  if (value === "recall" || value === "reverse" || value === "gamified") return value;
   return null;
 }
 
@@ -38,13 +39,17 @@ export default async function PracticePage({
   const revise = parseRevise(rawRevise);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-10 sm:px-6">
-      <PracticeSession
-        categoryId={category.id}
-        categoryName={category.name}
-        initialMode={mode}
-        initialRevise={revise}
-      />
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6 sm:px-6 sm:py-10">
+      {mode === "gamified" ? (
+        <GamifiedSession categoryId={category.id} categoryName={category.name} />
+      ) : (
+        <PracticeSession
+          categoryId={category.id}
+          categoryName={category.name}
+          initialMode={mode}
+          initialRevise={revise}
+        />
+      )}
     </div>
   );
 }

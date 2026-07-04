@@ -56,6 +56,22 @@ export async function importWordsIntoCategory(
   return { categoryId, createdCount: toCreate.length, skippedDuplicates };
 }
 
+/** Every word across every category, with progress — used for the full JSON data export. */
+export async function listAllWords() {
+  return prisma.vocabWord.findMany({
+    include: { progress: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** Lightweight word list (no progress) for Gamified Mode's distractor pool. */
+export async function getWordPool(categoryId: string) {
+  return prisma.vocabWord.findMany({
+    where: { categoryId },
+    select: { id: true, arabic: true, english: true },
+  });
+}
+
 export async function listWordsByCategory(categoryId: string) {
   return prisma.vocabWord.findMany({
     where: { categoryId },
