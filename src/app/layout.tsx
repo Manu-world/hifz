@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { OfflineSyncManager } from "@/components/pwa/offline-sync-manager";
+import { AppNav } from "@/components/nav/app-nav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -52,6 +54,8 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <RegisterServiceWorker />
+        <OfflineSyncManager />
+        <AppNav />
         {children}
         <Toaster position="top-center" richColors />
       </body>
