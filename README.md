@@ -2,6 +2,10 @@
 
 Production-minded personal vocabulary trainer built with Next.js App Router + TypeScript.
 
+- **Repo:** https://github.com/Manu-world/hifz
+- **Live:** https://hifz-lac.vercel.app (gated by `APP_SHARED_SECRET` — see
+  [Deploying to Production](#deploying-to-production-vercel--turso))
+
 ## Current Status
 
 Implemented and verified:
@@ -113,6 +117,10 @@ Notes:
 turso db create hifz-vocab
 turso db tokens create hifz-vocab
 ```
+
+`turso db tokens create` is the only command that produces a valid `DATABASE_AUTH_TOKEN` —
+pasting an account/dashboard access token here instead gets a `401` from libsql at request time,
+not at deploy time, so it's easy to miss until you hit `/api/health`.
 
 2. Prisma 7's migrate commands don't target `libsql://` URLs directly (see
    [Critical Operational Notes](#critical-operational-notes)), so replay the local migration SQL
