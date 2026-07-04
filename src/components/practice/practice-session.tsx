@@ -2,12 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { normalizeAndMatch } from "@/lib/practice/matcher";
+import { ACHIEVEMENTS, type AchievementId } from "@/lib/practice/gamification";
+import { SpeakButton } from "@/components/practice/speak-button";
+import {
+  createSession,
+  endSession,
+  fetchDueWords,
+  submitAnswer,
+  type SessionHandle,
+} from "@/lib/offline/api";
 
 type Mode = "recall" | "reverse";
 
@@ -37,7 +47,7 @@ export function PracticeSession({
   const [mode, setMode] = useState<Mode | null>(initialMode);
   const [revise, setRevise] = useState(initialRevise);
   const [phase, setPhase] = useState<Phase>(initialMode ? "loading" : "choose-mode");
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [session, setSession] = useState<SessionHandle | null>(null);
   const [queue, setQueue] = useState<PracticeWord[]>([]);
   const [totalWords, setTotalWords] = useState(0);
   const [inputValue, setInputValue] = useState("");
@@ -53,14 +63,12 @@ export function PracticeSession({
 
   useEffect(() => {
     if (!mode) return;
+    const currentMode = mode;
     let cancelled = false;
 
     async function start() {
       setPhase("loading");
-      const wordsRes = await fetch(
-        `/api/words/due?categoryId=${categoryId}&revise=${revise ? "1" : "0"}`,
-      );
-      const { words } = (await wordsRes.json()) as { words: PracticeWord[] };
+      const { words } = await fetchDueWords<PracticeWord>(categoryId, { revise });
       if (cancelled) return;
 
       if (words.length === 0) {
@@ -68,15 +76,10 @@ export function PracticeSession({
         return;
       }
 
-      const sessionRes = await fetch("/api/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, categoryId, isRevision: revise }),
-      });
-      const { session } = (await sessionRes.json()) as { session: { id: string } };
+      const newSession = await createSession({ mode: currentMode, categoryId, isRevision: revise });
       if (cancelled) return;
 
-      setSessionId(session.id);
+      setSession(newSession);
       setQueue(words);
       setTotalWords(words.length);
       setPhase("active");
@@ -102,12 +105,14 @@ export function PracticeSession({
   }, [totalWords, queue.length]);
 
   async function finishSession(finalTally: { wordsShown: number; correctCount: number }) {
-    if (sessionId) {
-      await fetch(`/api/sessions/${sessionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...finalTally, xpEarned: 0 }),
-      });
+    if (session) {
+      // Recall/Reverse award 0 XP by design (see README "Known Assumptions");
+      // only Gamified mode earns XP. Achievement checks still run for every
+      // mode, since streak/mastery achievements aren't gamified-only.
+      const { rewards } = await endSession(session, { ...finalTally, xpEarned: 0 });
+      for (const id of rewards?.newAchievements ?? []) {
+        toast.success(`Achievement unlocked: ${ACHIEVEMENTS[id as AchievementId]}`);
+      }
     }
     setPhase("finished");
   }
@@ -126,11 +131,7 @@ export function PracticeSession({
       return next;
     });
 
-    await fetch("/api/progress/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wordId: currentWord.id, isCorrect }),
-    });
+    await submitAnswer({ wordId: currentWord.id, isCorrect });
   }
 
   function handleNext() {
@@ -165,7 +166,7 @@ export function PracticeSession({
         <CardHeader>
           <CardTitle>{categoryName}</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-2">
+        <CardContent className="flex flex-col gap-2 sm:flex-row">
           <Button
             className="flex-1"
             onClick={() => {
@@ -252,12 +253,15 @@ export function PracticeSession({
       <Progress value={progressPct} />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-        <p
-          className={mode === "recall" ? "font-arabic text-4xl" : "text-3xl"}
-          dir={mode === "recall" ? "rtl" : "ltr"}
-        >
-          {prompt}
-        </p>
+        <div className="flex items-center gap-2">
+          <p
+            className={mode === "recall" ? "font-arabic text-4xl" : "text-3xl"}
+            dir={mode === "recall" ? "rtl" : "ltr"}
+          >
+            {prompt}
+          </p>
+          {mode === "recall" && <SpeakButton text={prompt} />}
+        </div>
 
         <div className="flex w-full max-w-sm flex-col gap-2">
           <Label htmlFor="answer" className="sr-only">
