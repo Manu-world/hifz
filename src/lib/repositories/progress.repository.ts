@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { applyAnswerResult } from "@/lib/practice/scheduler";
+import { applyAnswerResult, MAX_BOX } from "@/lib/practice/scheduler";
 
 export type DueWord = {
   id: string;
@@ -53,12 +53,15 @@ export async function getDueWords(
 /**
  * Records the result of a practice attempt: advances/resets the Leitner box,
  * pushes dueAt out (or to now, if wrong), and updates the attempt tallies.
+ * Returns the box the word was in *before* this answer alongside the updated
+ * progress, since XP weighting (harder/lower box = worth more) is priced off
+ * the pre-answer difficulty, not the post-answer one.
  */
 export async function recordAnswer(wordId: string, isCorrect: boolean) {
   const progress = await prisma.wordProgress.findUniqueOrThrow({ where: { wordId } });
   const { box, dueAt } = applyAnswerResult({ box: progress.box }, isCorrect);
 
-  return prisma.wordProgress.update({
+  const updated = await prisma.wordProgress.update({
     where: { wordId },
     data: {
       box,
@@ -68,6 +71,8 @@ export async function recordAnswer(wordId: string, isCorrect: boolean) {
       lastSeenAt: new Date(),
     },
   });
+
+  return { progress: updated, previousBox: progress.box };
 }
 
 /** Manual "I know this" toggle. Independent of box/dueAt. */
@@ -76,4 +81,10 @@ export async function setWordDone(wordId: string, isDone: boolean) {
     where: { wordId },
     data: { isDone, doneAt: isDone ? new Date() : null },
   });
+}
+
+/** Total words considered mastered (manually done, or graduated to the top Leitner box). */
+export async function getTotalMasteredCount(): Promise<number> {
+  const rows = await prisma.wordProgress.findMany({ select: { isDone: true, box: true } });
+  return rows.filter((row) => row.isDone || row.box >= MAX_BOX).length;
 }
