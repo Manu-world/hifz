@@ -6,6 +6,8 @@ import { CsvImportForm } from "@/components/import/csv-import-form";
 // time and bake in whatever categories existed then. See repo memory:
 // DB-backed pages always use `export const dynamic = "force-dynamic"`.
 export const dynamic = "force-dynamic";
+// Large CSV imports run multiple Turso batches sequentially; allow headroom on Vercel.
+export const maxDuration = 60;
 
 export default async function ImportPage() {
   const categories = await listCategories();

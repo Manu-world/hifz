@@ -15,6 +15,22 @@ export type ImportSummary = {
   skippedDuplicates: string[];
 };
 
+/** Keeps each Turso transaction under Prisma's default 5s timeout (~100–150ms per create). */
+export const IMPORT_BATCH_SIZE = 15;
+
+function createWordWithProgress(categoryId: string, row: ParsedVocabRow) {
+  return prisma.vocabWord.create({
+    data: {
+      categoryId,
+      arabic: row.arabic,
+      english: row.english,
+      exampleArabic: row.exampleArabic,
+      exampleEnglish: row.exampleEnglish,
+      progress: { create: {} }, // box 0, dueAt now (schema defaults)
+    },
+  });
+}
+
 /**
  * Creates VocabWord + WordProgress (box 0, due now) rows for each row not
  * already present in the category (exact `arabic` match) and not a duplicate
@@ -38,20 +54,13 @@ export async function importWordsIntoCategory(
     toCreate.push(row);
   }
 
-  await prisma.$transaction(
-    toCreate.map((row) =>
-      prisma.vocabWord.create({
-        data: {
-          categoryId,
-          arabic: row.arabic,
-          english: row.english,
-          exampleArabic: row.exampleArabic,
-          exampleEnglish: row.exampleEnglish,
-          progress: { create: {} }, // box 0, dueAt now (schema defaults)
-        },
-      }),
-    ),
-  );
+  for (let i = 0; i < toCreate.length; i += IMPORT_BATCH_SIZE) {
+    const batch = toCreate.slice(i, i + IMPORT_BATCH_SIZE);
+    await prisma.$transaction(
+      batch.map((row) => createWordWithProgress(categoryId, row)),
+      { timeout: 15_000 },
+    );
+  }
 
   return { categoryId, createdCount: toCreate.length, skippedDuplicates };
 }
